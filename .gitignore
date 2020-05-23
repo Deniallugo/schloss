@@ -1,0 +1,5 @@
+.eggs
+schloss.egg-info
+dist
+build
+.coverage
