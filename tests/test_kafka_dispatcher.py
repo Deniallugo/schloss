@@ -3,7 +3,7 @@ from queue import Queue
 
 import pytest
 
-from schloss import KafkaDispatcher, SchlossSession
+from schloss import SchlossDispatcher, SchlossSession
 
 
 class Message:
@@ -31,7 +31,7 @@ async def middleware(session, handler):
 async def test_basic_kafka_dispatch():
     queue = Queue()
     handler = partial(simple_handler, queue=queue)
-    dispatcher = KafkaDispatcher(
+    dispatcher = SchlossDispatcher(
         handlers={
             'test': handler
         },

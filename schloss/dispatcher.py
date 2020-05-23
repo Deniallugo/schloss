@@ -8,7 +8,7 @@ from .types import MessageTypeDispatcher, MiddlewareType
 logger = logging.getLogger(__name__)
 
 
-class KafkaDispatcher:
+class SchlossDispatcher:
 
     def __init__(
             self,
@@ -23,9 +23,8 @@ class KafkaDispatcher:
     def received_topics(self):
         return self._handlers.keys()
 
-    async def dispatch(self, session: SchlossSession) -> Optional[Awaitable]:
+    async def dispatch(self, session: SchlossSession):
         handler = self._handlers[session.topic]
-
         for middleware in self._middlewares:
             handler = partial(middleware, handler=handler)
-        return await handler(session)
+        await handler(session)

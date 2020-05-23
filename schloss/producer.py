@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 class SchlossProducer:
     def __init__(self, url, **kwargs):
         loop = asyncio.get_running_loop()
-        self.producer = aiokafka.AIOKafkaProducer(
+        self._producer = aiokafka.AIOKafkaProducer(
             loop=loop, bootstrap_servers=url, **kwargs
         )
         self._start_task = None
@@ -24,12 +24,15 @@ class SchlossProducer:
 
     async def _start(self):
         timeout = 2
+        max_timeout = 120
         while True:
             try:
-                await self.producer.start()
+                await self._producer.start()
+                timeout = 2
             except (KafkaConnectionError, gaierror):
                 await asyncio.sleep(timeout)
-                timeout *= 2
+                if timeout < max_timeout:
+                    timeout *= 2
             else:
                 break
 
@@ -37,8 +40,7 @@ class SchlossProducer:
         if self._start_task is None:
             raise ValueError('Producer is not started')
         self._start_task.cancel()
-        await self.producer.stop()
-        self.started = False
+        await self._producer.stop()
 
     async def _wait_started(self):
         if self._start_task is None:
@@ -49,5 +51,5 @@ class SchlossProducer:
         await self._wait_started()
         if not (message is None or isinstance(message, bytes)):
             raise TypeError('Message must be bytes')
-        await self.producer.send_and_wait(topic, message, **kwargs)
+        await self._producer.send_and_wait(topic, message, **kwargs)
         logger.info(f'Message on the topic {topic!r} was sent')
