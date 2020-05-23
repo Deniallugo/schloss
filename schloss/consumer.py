@@ -1,12 +1,19 @@
 import asyncio
 import logging
 from socket import gaierror
+from typing import Protocol
 
 import aiokafka
 from kafka.errors import KafkaConnectionError
 
-from .dispatcher import SchlossDispatcher
 from .session import SchlossSession
+from .dispatcher import SchlossDispatcher
+from .types import Message
+
+
+class SessionCreator(Protocol):
+    def __call__(self, msg: Message, **kwargs) -> 'SchlossSession': ...
+
 
 logger = logging.getLogger(__name__)
 
@@ -14,16 +21,19 @@ logger = logging.getLogger(__name__)
 class SynchronousSchlossConsumer:
 
     def __init__(
-        self, dependencies,
+        self,
         url: str, group_id: str,
+        session_creator: SessionCreator,
         dispatcher: SchlossDispatcher,
-        auto_offset_reset: str = 'earliest'
+        auto_offset_reset: str = 'earliest',
+        options: dict = None
     ):
-        self.dependencies = dependencies
         self.url = url
         self.group_id = group_id
         self.dispatcher = dispatcher
         self.consume_task = None
+        self._session_creator = session_creator
+        self._aiokafka_options = options or {}
         self.auto_offset_reset = auto_offset_reset
 
     async def consume(self):
@@ -41,6 +51,7 @@ class SynchronousSchlossConsumer:
                 group_id=self.group_id,
                 enable_auto_commit=False,
                 auto_offset_reset=self.auto_offset_reset,
+                **self._aiokafka_options
             )
             try:
                 if start_consumer:
@@ -60,7 +71,7 @@ class SynchronousSchlossConsumer:
 
             except asyncio.CancelledError:
                 if running_task:
-                    await asyncio.wait({running_task}, timeout)
+                    await asyncio.wait({running_task}, timeout=timeout)
                 break
             except (gaierror, KafkaConnectionError):
                 start_consumer = True
@@ -75,7 +86,7 @@ class SynchronousSchlossConsumer:
         await consumer.stop()
 
     async def handle_msg(self, msg, consumer):
-        session = SchlossSession(msg=msg, dependencies=self.dependencies)
+        session = self._session_creator(msg)
         logger.info(f'Consuming message on the topic {msg.topic!r}')
         await self.dispatcher.dispatch(session)
         await consumer.commit()

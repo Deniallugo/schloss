@@ -1,34 +1,13 @@
-from collections.abc import MutableMapping
-
 from aiokafka import ConsumerRecord
 
 
-class SchlossSession(MutableMapping):
+class SchlossSession(dict):
 
-    def __init__(self, msg: ConsumerRecord, dependencies=None, state=None):
+    def __init__(self, msg: ConsumerRecord, dependencies=None, **kwargs):
+        super().__init__(**kwargs)
         self._message = msg
-        self._state = state or {}
         self._dependencies = dependencies
         self._topic = msg.topic
-
-    # MutableMapping API
-
-    def __getitem__(self, key):
-        return self._state[key]
-
-    def __setitem__(self, key, value):
-        self._state[key] = value
-
-    def __delitem__(self, key):
-        del self._state[key]
-
-    def __len__(self):
-        return len(self._state)
-
-    def __iter__(self):
-        return iter(self._state)
-
-    #########
 
     @property
     def message(self):
@@ -41,4 +20,3 @@ class SchlossSession(MutableMapping):
     @property
     def dependencies(self):
         return self._dependencies
-

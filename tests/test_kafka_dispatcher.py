@@ -38,7 +38,7 @@ async def test_basic_kafka_dispatch():
         middlewares=[middleware],
     )
     session = SchlossSession(
-        Message()
+        msg=Message()
     )
     await dispatcher.dispatch(session)
     assert isinstance(queue.get_nowait(), Message)
