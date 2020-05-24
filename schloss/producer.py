@@ -29,7 +29,8 @@ class SchlossProducer:
             try:
                 await self._producer.start()
                 timeout = 2
-            except (KafkaConnectionError, gaierror):
+            except (KafkaConnectionError, gaierror) as e:
+                logger.error(e)
                 await asyncio.sleep(timeout)
                 if timeout < max_timeout:
                     timeout *= 2
@@ -48,8 +49,8 @@ class SchlossProducer:
         await self._start_task
 
     async def send(self, topic: str, message: Optional[bytes], **kwargs):
-        await self._wait_started()
+        await asyncio.wait_for(self._wait_started(), timeout=5)
         if not (message is None or isinstance(message, bytes)):
             raise TypeError('Message must be bytes')
-        await self._producer.send_and_wait(topic, message, **kwargs)
+        await asyncio.wait_for(self._producer.send(topic, message, **kwargs), 0.1)
         logger.info(f'Message on the topic {topic!r} was sent')

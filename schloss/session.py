@@ -9,6 +9,10 @@ class SchlossSession(dict):
         self._dependencies = dependencies
         self._topic = msg.topic
 
+    @classmethod
+    def new(cls, msg: ConsumerRecord, dependencies=None, **kwargs):
+        return cls(msg, dependencies, **kwargs)
+
     @property
     def message(self):
         return self._message
