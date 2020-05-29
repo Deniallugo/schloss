@@ -100,8 +100,8 @@ class SynchronousSchlossConsumer:
         await self.dispatcher.dispatch(session)
         await consumer.commit()
 
-    async def start(self):
-        self.consume_task = asyncio.create_task(self.consume())
+    async def start(self, attempts_count=100, initial_timeout=2, max_timeout=120):
+        self.consume_task = asyncio.create_task(self.consume(attempts_count=attempts_count, initial_timeout=initial_timeout, max_timeout=max_timeout))
 
     async def stop(self):
         self.consume_task.cancel()
