@@ -38,15 +38,13 @@ class SynchronousSchlossConsumer:
         self._aiokafka_options = options or {}
         self.auto_offset_reset = auto_offset_reset
 
-    async def consume(self, attempts_count=100):
+    async def consume(self, attempts_count=100, initial_timeout=2, max_timeout=120):
         loop = asyncio.get_running_loop()
 
         topics = self.dispatcher.received_topics
         running_task = None
         start_consumer = True
-        default_timeout = 2
-        timeout = default_timeout
-        max_timeout = 120
+        timeout = initial_timeout 
         consumer = aiokafka.AIOKafkaConsumer(
             *topics,
             loop=loop, bootstrap_servers=self.url,
@@ -61,7 +59,7 @@ class SynchronousSchlossConsumer:
                     if start_consumer:
                         await consumer.start()
                         start_consumer = False
-                        timeout = default_timeout
+                        timeout = initial_timeout 
                         logger.info('Kafka Consumer started')
                     async for msg in consumer:
                         for _ in range(attempts_count):
@@ -74,7 +72,7 @@ class SynchronousSchlossConsumer:
                                 # finished tasks
                                 await asyncio.shield(running_task)
                                 running_task = None
-                                timeout = default_timeout
+                                timeout = initial_timeout 
                                 break
                             except asyncio.CancelledError:
                                 if running_task:
