@@ -17,6 +17,8 @@ class SessionCreator(Protocol):
 
 logger = logging.getLogger(__name__)
 
+class AttemptsFinished(Exception):
+    pass
 
 class SynchronousSchlossConsumer:
 
@@ -36,54 +38,63 @@ class SynchronousSchlossConsumer:
         self._aiokafka_options = options or {}
         self.auto_offset_reset = auto_offset_reset
 
-    async def consume(self):
+    async def consume(self, attempts_count=100):
         loop = asyncio.get_running_loop()
 
         topics = self.dispatcher.received_topics
         running_task = None
         start_consumer = True
-        timeout = 2
+        default_timeout = 2
+        timeout = default_timeout
         max_timeout = 120
-        while True:
-            consumer = aiokafka.AIOKafkaConsumer(
-                *topics,
-                loop=loop, bootstrap_servers=self.url,
-                group_id=self.group_id,
-                enable_auto_commit=False,
-                auto_offset_reset=self.auto_offset_reset,
-                **self._aiokafka_options
-            )
-            try:
-                if start_consumer:
-                    await consumer.start()
-                    start_consumer = False
-                    timeout = 2
-                logger.info('Kafka Consumer started')
-                async for msg in consumer:
-                    running_task = asyncio.create_task(
-                        self.handle_msg(msg, consumer)
-                    )
-                    # Must be waited here, otherwise handling will run in
-                    # parallel and will incorrectly commit offsets for not
-                    # finished tasks
-                    await asyncio.shield(running_task)
-                    running_task = None
+        consumer = aiokafka.AIOKafkaConsumer(
+            *topics,
+            loop=loop, bootstrap_servers=self.url,
+            group_id=self.group_id,
+            enable_auto_commit=False,
+            auto_offset_reset=self.auto_offset_reset,
+            **self._aiokafka_options
+        )
+        try:
+            while True:
+                try:
+                    if start_consumer:
+                        await consumer.start()
+                        start_consumer = False
+                        timeout = default_timeout
+                        logger.info('Kafka Consumer started')
+                    async for msg in consumer:
+                        for _ in range(attempts_count):
+                            try:
+                                running_task = asyncio.create_task(
+                                    self.handle_msg(msg, consumer)
+                                )
+                                # Must be waited here, otherwise handling will run in
+                                # parallel and will incorrectly commit offsets for not
+                                # finished tasks
+                                await asyncio.shield(running_task)
+                                running_task = None
+                                timeout = default_timeout
+                                break
+                            except asyncio.CancelledError:
+                                if running_task:
+                                    await asyncio.wait({running_task}, timeout=timeout)
+                                raise
+                            except Exception as e:
+                                logger.exception(e)
+                                await asyncio.sleep(timeout)
+                        else:
+                            raise AttemptsFinished()
 
-            except asyncio.CancelledError:
-                if running_task:
-                    await asyncio.wait({running_task}, timeout=timeout)
-                break
-            except (gaierror, KafkaConnectionError):
-                start_consumer = True
-                await consumer.stop()
-                await asyncio.sleep(timeout)
-            except Exception as e:
-                logger.exception(e)
-                await asyncio.sleep(timeout)
-            if timeout < max_timeout:
-                timeout *= 2
-
-        await consumer.stop()
+                except (gaierror, KafkaConnectionError):
+                    start_consumer = True
+                    await consumer.stop()
+                    await asyncio.sleep(timeout)
+                if timeout < max_timeout:
+                    timeout *= 2
+        finally:
+            await consumer.stop()
+            
 
     async def handle_msg(self, msg, consumer):
         session = self._session_creator(msg=msg)
