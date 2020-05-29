@@ -86,7 +86,7 @@ class SynchronousSchlossConsumer:
         await consumer.stop()
 
     async def handle_msg(self, msg, consumer):
-        session = self._session_creator(msg)
+        session = self._session_creator(msg=msg)
         logger.info(f'Consuming message on the topic {msg.topic!r}')
         await self.dispatcher.dispatch(session)
         await consumer.commit()
