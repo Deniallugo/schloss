@@ -17,18 +17,20 @@ class SessionCreator(Protocol):
 
 logger = logging.getLogger(__name__)
 
+
 class AttemptsFinished(Exception):
     pass
+
 
 class SynchronousSchlossConsumer:
 
     def __init__(
-        self,
-        url: str, group_id: str,
-        session_creator: SessionCreator,
-        dispatcher: SchlossDispatcher,
-        auto_offset_reset: str = 'earliest',
-        options: dict = None
+            self,
+            url: str, group_id: str,
+            session_creator: SessionCreator,
+            dispatcher: SchlossDispatcher,
+            auto_offset_reset: str = 'earliest',
+            options: dict = None
     ):
         self.url = url
         self.group_id = group_id
@@ -44,7 +46,7 @@ class SynchronousSchlossConsumer:
         topics = self.dispatcher.received_topics
         running_task = None
         start_consumer = True
-        timeout = initial_timeout 
+        timeout = initial_timeout
         consumer = aiokafka.AIOKafkaConsumer(
             *topics,
             loop=loop, bootstrap_servers=self.url,
@@ -59,7 +61,7 @@ class SynchronousSchlossConsumer:
                     if start_consumer:
                         await consumer.start()
                         start_consumer = False
-                        timeout = initial_timeout 
+                        timeout = initial_timeout
                         logger.info('Kafka Consumer started')
                     async for msg in consumer:
                         for _ in range(attempts_count):
@@ -72,7 +74,7 @@ class SynchronousSchlossConsumer:
                                 # finished tasks
                                 await asyncio.shield(running_task)
                                 running_task = None
-                                timeout = initial_timeout 
+                                timeout = initial_timeout
                                 break
                             except asyncio.CancelledError:
                                 if running_task:
@@ -92,7 +94,6 @@ class SynchronousSchlossConsumer:
                     timeout *= 2
         finally:
             await consumer.stop()
-            
 
     async def handle_msg(self, msg, consumer):
         session = self._session_creator(msg=msg)
@@ -101,7 +102,8 @@ class SynchronousSchlossConsumer:
         await consumer.commit()
 
     async def start(self, attempts_count=100, initial_timeout=2, max_timeout=120):
-        self.consume_task = asyncio.create_task(self.consume(attempts_count=attempts_count, initial_timeout=initial_timeout, max_timeout=max_timeout))
+        self.consume_task = asyncio.create_task(
+            self.consume(attempts_count=attempts_count, initial_timeout=initial_timeout, max_timeout=max_timeout))
 
     async def stop(self):
         self.consume_task.cancel()
