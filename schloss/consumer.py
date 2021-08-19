@@ -22,7 +22,6 @@ logger = logging.getLogger(__name__)
 class AttemptsFinished(Exception):
     pass
 
-
 class SynchronousSchlossConsumer:
     def __init__(
         self,
